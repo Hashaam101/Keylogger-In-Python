@@ -405,119 +405,83 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:6699");
-
-    ws.onopen = () => {
+    // SSE EventSource for /api/events
+    let es;
+    let closed = false;
+    function connectSSE() {
+      es = new EventSource("/api/events");
       setConnectionState("live");
-      ws.send(JSON.stringify({ mode: viewMode === "compact" ? "structured" : viewMode }));
-    };
-
-    ws.onmessage = async (event) => {
-      let message = event.data;
-
-      if (message instanceof Blob) {
-        message = await message.text();
-      }
-
-      try {
-        const parsedMessage = JSON.parse(message);
-
-        if (parsedMessage.type === "status") {
-          setClientConnected(parsedMessage.clientConnected);
-          if (Array.isArray(parsedMessage.devices)) {
-            setDevices(parsedMessage.devices);
+      es.onmessage = (event) => {
+        if (closed) return;
+        try {
+          const parsedMessage = JSON.parse(event.data);
+          if ((viewMode === "structured" || viewMode === "compact") && parsedMessage.data !== undefined) {
+            const deviceTs = (parsedMessage.timestamp || Date.now() / 1000) * 1000;
+            const serverTs = (parsedMessage.serverTimestamp || Date.now() / 1000) * 1000;
+            const isCombo = parsedMessage.type === "combo";
+            const segments =
+              Array.isArray(parsedMessage.data) &&
+              parsedMessage.data.length > 0 &&
+              parsedMessage.data.every(
+                (s) => s && typeof s === "object" && typeof s.text === "string"
+              )
+                ? parsedMessage.data
+                : null;
+            const structuredText = segments
+              ? segments.map((s) => s.text).join("")
+              : normalizeStructuredText(parsedMessage.data);
+            setLogs((current) => [
+              ...current,
+              {
+                id: makeId(),
+                kind: "structured",
+                deviceTs,
+                serverTs,
+                device: parsedMessage.device || null,
+                text: structuredText,
+                combo: isCombo,
+                segments,
+              },
+            ]);
+          } else {
+            const deviceTs = (parsedMessage.timestamp || Date.now() / 1000) * 1000;
+            const serverTs = (parsedMessage.serverTimestamp || Date.now() / 1000) * 1000;
+            setLogs((current) => [
+              ...current,
+              {
+                id: makeId(),
+                kind: "raw",
+                deviceTs,
+                serverTs,
+                device: parsedMessage.device || null,
+                text: typeof parsedMessage === "string" ? parsedMessage : JSON.stringify(parsedMessage, null, 2),
+              },
+            ]);
           }
-          return;
-        }
-
-        if (parsedMessage.type === "exit") {
-          setExitFlash(true);
-          setTimeout(() => setExitFlash(false), 100);
-          return;
-        }
-
-        if (parsedMessage.type === "edit_previous") {
-          const deviceId = parsedMessage.device?.id ?? null;
-          setLogs((current) => applyEditPrevious(current, parsedMessage, deviceId));
-          return;
-        }
-
-        if (parsedMessage.type === "delete_previous") {
-          const count = Number(parsedMessage.count) || 0;
-          const deviceId = parsedMessage.device?.id ?? null;
-          setLogs((current) => applyDeletePrevious(current, count, deviceId));
-          return;
-        }
-
-        if ((viewMode === "structured" || viewMode === "compact") && parsedMessage.data !== undefined) {
-          const deviceTs = (parsedMessage.timestamp || Date.now() / 1000) * 1000;
-          const serverTs = (parsedMessage.serverTimestamp || Date.now() / 1000) * 1000;
-          const isCombo = parsedMessage.type === "combo";
-          const segments =
-            Array.isArray(parsedMessage.data) &&
-            parsedMessage.data.length > 0 &&
-            parsedMessage.data.every(
-              (s) => s && typeof s === "object" && typeof s.text === "string"
-            )
-              ? parsedMessage.data
-              : null;
-          const structuredText = segments
-            ? segments.map((s) => s.text).join("")
-            : normalizeStructuredText(parsedMessage.data);
-
-          setLogs((current) => [
-            ...current,
-            {
-              id: makeId(),
-              kind: "structured",
-              deviceTs,
-              serverTs,
-              device: parsedMessage.device || null,
-              text: structuredText,
-              combo: isCombo,
-              segments,
-            },
-          ]);
-        } else {
-          const deviceTs = (parsedMessage.timestamp || Date.now() / 1000) * 1000;
-          const serverTs = (parsedMessage.serverTimestamp || Date.now() / 1000) * 1000;
+        } catch {
+          const nowTs = Date.now();
           setLogs((current) => [
             ...current,
             {
               id: makeId(),
               kind: "raw",
-              deviceTs,
-              serverTs,
-              device: parsedMessage.device || null,
-              text: typeof parsedMessage === "string" ? parsedMessage : JSON.stringify(parsedMessage, null, 2),
+              deviceTs: nowTs,
+              serverTs: nowTs,
+              text: String(event.data),
             },
           ]);
         }
-      } catch {
-        const nowTs = Date.now();
-        setLogs((current) => [
-          ...current,
-          {
-            id: makeId(),
-            kind: "raw",
-            deviceTs: nowTs,
-            serverTs: nowTs,
-            text: String(message),
-          },
-        ]);
-      }
-    };
-
-    ws.onerror = () => {
-      setConnectionState("error");
-    };
-
-    ws.onclose = () => {
-      setConnectionState("offline");
-    };
-
+      };
+      es.onerror = () => {
+        setConnectionState("error");
+        es.close();
+        if (!closed) setTimeout(connectSSE, 2000);
+      };
+    }
+    connectSSE();
     return () => {
-      ws.close();
+      closed = true;
+      if (es) es.close();
     };
   }, [viewMode]);
 
@@ -798,7 +762,7 @@ export default function HomePage() {
                     ? "Server connected. Waiting for keylogger client..."
                     : connectionState === "live" && clientConnected
                     ? "Client connected. Keystrokes will appear here."
-                    : "Connect to the WebSocket server to begin capture."}
+                    : "Connect to the server to begin capture."}
                 </p>
               </div>
             ) : viewMode === "compact" ? (

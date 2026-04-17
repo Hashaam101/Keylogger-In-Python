@@ -1,18 +1,20 @@
 # KeyLogger
 
-A Windows keylogger with a real-time web dashboard. A Python client captures keystrokes and streams them over a WebSocket to a Next.js server, which fans out the data to any connected browser clients.
+
+A Windows keylogger with a real-time web dashboard. The Python client captures keystrokes and POSTs them in batches to a Vercel-hosted Next.js server using HTTP. The server stores logs in Upstash Redis and streams updates to the dashboard via Server-Sent Events (SSE).
 
 ## Architecture
 
 ```
-┌──────────────────┐   WebSocket    ┌───────────────────┐   WebSocket   ┌──────────────┐
+
+┌──────────────────┐   HTTP POST    ┌───────────────────┐   SSE         ┌──────────────┐
 │ keylogger/       │ ──────────────▶│ server/           │──────────────▶│ Browser UI   │
-│ Keylogger.py     │  ws://:6699    │ Next.js + ws      │               │ (page.js)    │
+│ Keylogger.py     │  /api/ingest   │ Next.js + Redis   │   /api/events │ (page.js)    │
 └──────────────────┘                └───────────────────┘               └──────────────┘
 ```
 
-- **`keylogger/`** — Python client that hooks global key events and sends them to the server. Also ships with a VBScript file-hider and a Windows launcher.
-- **`server/`** — Next.js app that runs a WebSocket server on port `6699`, stores device info, and serves a live dashboard that shows structured keystroke data (including greyed-out deletions) in real time.
+- **`keylogger/`** — Python client that hooks global key events and batches them to the server via HTTP POST. Also ships with a VBScript file-hider and a Windows launcher.
+- **`server/`** — Next.js app (deployed on Vercel) that stores logs in Upstash Redis and serves a live dashboard. The dashboard receives real-time updates via SSE.
 
 ## Repository layout
 
@@ -24,9 +26,11 @@ KeyLogger/
 │   ├── requirements.txt
 │   ├── file_hider.vbs
 │   └── logs.txt
-├── server/                 Next.js dashboard + WebSocket relay
+├── server/                 Next.js dashboard + HTTP/SSE relay
 │   ├── src/app/page.js         dashboard UI
-│   ├── src/app/api/log/route.js WebSocket server on :6699
+│   ├── src/app/api/ingest/route.js  HTTP ingest endpoint
+│   ├── src/app/api/events/route.js  SSE events endpoint
+│   ├── src/app/api/mode/route.js    Dashboard mode endpoint
 │   └── package.json
 ├── Autorun.inf
 ├── py_compiler.bat
@@ -43,7 +47,8 @@ npm install
 npm run dev
 ```
 
-The Next.js dev server runs on `http://localhost:3000` and the WebSocket server on `ws://localhost:6699`. Open the dashboard in a browser to see live keystrokes.
+
+The Next.js dev server runs on `http://localhost:3000`. In production, the server is deployed to Vercel at `https://keylogger-py.vercel.app`. The dashboard receives real-time updates via SSE from `/api/events`.
 
 ### 2. Run the keylogger client
 
@@ -52,11 +57,19 @@ cd keylogger
 LauncherForWindows.bat
 ```
 
-The launcher installs dependencies (`keyboard`, `websocket-client`, etc.) and starts `Keylogger.py` with `pythonw` so it runs without a console window. The client connects to `ws://localhost:6699` and streams keystrokes to the server.
 
-To point the client at a non-local server, edit the WebSocket URL in `keylogger/Keylogger.py`.
+The launcher installs dependencies (`keyboard`, `requests`, etc.) and starts `Keylogger.py` with `pythonw` so it runs without a console window. The client POSTs batched keystrokes to `/api/ingest` on the server every 2 seconds.
+
+To point the client at a different server, edit the `endpoint` in `keylogger/Keylogger.py`.
+
 
 ## How it works
+
+1. **Keylogger client** batches keystrokes and POSTs them to `/api/ingest` every 2 seconds.
+2. **Server** appends logs to Upstash Redis and streams new events to dashboards via `/api/events` (SSE).
+3. **Dashboard** connects to `/api/events` and updates in real time.
+
+Mode switching (raw/structured) is handled by the dashboard writing to `/api/mode`, and the client reading the mode from each POST response.
 
 ### Capture modes
 

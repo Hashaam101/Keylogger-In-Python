@@ -1,4 +1,6 @@
-# server/ — Next.js dashboard + WebSocket relay
+
+# server/ — Next.js dashboard + HTTP/SSE relay
+
 
 See the [top-level README](../README.md) for the overall architecture, client protocol, and message formats. This file covers only what is specific to this Next.js project.
 
@@ -8,26 +10,24 @@ This project uses a modified Next.js with breaking changes from upstream. Before
 
 ## Layout
 
+
 ```
 src/app/
-├── api/log/route.js   Boots the WebSocket server on :6699 and relays messages
+├── api/ingest/route.js   HTTP POST endpoint for keylogger client
+├── api/events/route.js   SSE endpoint for dashboard updates
+├── api/mode/route.js     Dashboard mode (raw/structured) endpoint
 ├── layout.js
-└── page.js            Dashboard: connects to ws://localhost:6699 as a "frontend" client
-keystrokes.log         Legacy file-watched log source (see below)
+└── page.js               Dashboard: connects to /api/events via SSE
 ```
+
 
 ## How the relay works
 
-`src/app/api/log/route.js` starts a `ws` `WebSocketServer` on port **6699** as a side effect of the module being imported. Each connecting socket is classified on its first message:
+- The keylogger client batches keystrokes and POSTs them to `/api/ingest`.
+- The server appends logs to Upstash Redis.
+- The dashboard connects to `/api/events` (SSE) to receive real-time updates.
+- Dashboard mode (raw/structured) is set via `/api/mode` and returned to the client in each POST response.
 
-- A message containing a `mode` field → **frontend** client. Gets a `status` snapshot of connected devices on connect. Mode changes are forwarded to every keylogger.
-- Anything else → **keylogger** client. Its `hello` payload is stored as `ws._device` and every subsequent message is forwarded to every frontend with the device attached and a `serverTimestamp` added.
-
-`exit` messages from keyloggers are forwarded with their device info so the UI can show a disconnect.
-
-## Legacy `keystrokes.log` watcher
-
-`route.js` also `fs.watch`es a `keystrokes.log` file at the project root. When it changes, the contents are parsed into `{ timestamp, content }` records, broadcast to frontends as a `structured` payload, and the file is truncated. This predates the WebSocket flow and is kept for compatibility — the current Python client does not write to it.
 
 ## Development
 
@@ -36,6 +36,4 @@ npm install
 npm run dev
 ```
 
-Dashboard: `http://localhost:3000`. WebSocket: `ws://localhost:6699`.
-
-If testing from another machine, open both ports in the firewall and change `ws://localhost:6699` in `keylogger/Keylogger.py` to point at this host.
+Dashboard: `http://localhost:3000`. SSE endpoint: `/api/events`. In production, use `https://keylogger-py.vercel.app`.
