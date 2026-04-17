@@ -1,0 +1,22 @@
+{
+  "name": "logger_server",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx kill-port 6699 && concurrently \"node src/app/api/log/route.js\" \"next dev\"",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "16.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "concurrently": "^9.2.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "kill-port": "^2.0.1",
+    "tailwindcss": "^4"
+  },
+  "type": "module"
+}
