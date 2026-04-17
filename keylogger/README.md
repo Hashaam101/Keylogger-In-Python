@@ -1,29 +1,32 @@
-**Keylogger and File Hider:**
+# keylogger/ — Python client
 
-This repository contains files for a keylogger and file hider script in Windows. The keylogger logs key events using the keyboard library in Python, and the logs are saved to a file called logs.txt. The file hider script is written in VBScript and hides specific files listed in the filesToHide array.
+See the [top-level README](../README.md) for architecture, message formats, and the master-exit trigger. This file documents only what is specific to the client files in this directory.
 
-**File Descriptions:**
+## Files
 
-- Keylogger.py: Python script for logging key events using the keyboard library.
-- LauncherForWindows.bat: Batch file for installing/upgrading pip, installing required packages, and running Keylogger.py.
-- requirements.txt: Text file listing the required Python packages for the keylogger.
-- file_hider.vbs: VBScript file for hiding files listed in the filesToHide array.
+| File                       | Purpose                                                                     |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `Keylogger.py`             | Main script. Hooks `keyboard` events and streams to `ws://localhost:6699`.  |
+| `LauncherForWindows.bat`   | Installs pip deps and starts `Keylogger.py` under `pythonw` (no console).   |
+| `requirements.txt`         | Pip dependencies (`keyboard`, `logging`).                                   |
+| `file_hider.vbs`           | Marks the other files in this directory as hidden via `fso` attributes.     |
+| `logs.txt`                 | Local fallback log written by `logging.basicConfig`. Not used for the UI — the dashboard receives data over the WebSocket — but kept as an on-disk record if the socket is unreachable. |
 
-**Installation and Usage:**
+## Tuning
 
-1. Clone the repository to your local machine.
-2. Run LauncherForWindows.bat to install/upgrade pip, install required packages, and run the keylogger.
-3. Key events will be logged to logs.txt in the same directory.
-4. You can use the file_hider.vbs script to hide or unhide the files(This only marks the files as hidden from properties of the file).
-5. You can also add the Files to your Startup folder to start the program everytime the computer turns on.
+Constants near the top of `Keylogger.py` you may want to change:
 
-**NOTE:**
- ***Some parts of these Programs are made by an AI. Secondly, I suggest that you DO NOT RENAME THE FILES unless you know what you are doing and you are going to rename the files inside the code of other files too.*** *(Sorry, I'm a newbie, I couldn't find a solution to this problem. Let me know if you know any)*
+- `idle_threshold = 2.5` — seconds of inactivity that triggers a buffer flush in structured mode.
+- `DELETE_PREVIOUS_WINDOW = 60.0` — max age of the last flushed line that a `delete_previous` event may retro-edit.
+- `EXIT_WORD = "crash"`, `EXIT_SHIFT_COUNT = 3` — master-exit trigger.
+- The WebSocket URL is hard-coded as `ws://localhost:6699` inside `start_websocket()`.
 
-**About the Code:**
+## Dependencies
 
-Welcome to the Keylogger and File Hider repository! This collection of scripts allows you to log key events and hide files. The keylogger is powered by the keyboard library in Python, and the logs are saved to logs.txt. The file hider script is written in VBScript and can hide files like a pro.
+`requirements.txt` lists `keyboard` and `logging`, but the script also imports `requests` and `websocket-client`. The batch launcher installs `keyboard` explicitly; install the rest manually if you are not using the launcher:
 
-**Warning:**
+```bash
+pip install keyboard websocket-client requests
+```
 
-These scripts are for educational and ethical purposes only. Use them responsibly and always comply with applicable laws and regulations. Stay stealthy, my friend!
+The `keyboard` module requires administrator privileges on Windows to hook global key events.

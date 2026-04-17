@@ -2644,3 +2644,127 @@
 2026-04-17 19:13:49,374: enter
 2026-04-17 19:14:21,384: alt
 2026-04-17 19:14:21,400: tab
+2026-04-17 19:35:37,196: Websocket connected
+2026-04-17 19:44:02,508: Websocket connected
+2026-04-17 19:57:47,135: Websocket connected
+2026-04-17 19:58:43,066: Websocket connected
+2026-04-17 19:59:01,421: dhhello
+2026-04-17 20:01:58,355: Websocket connected
+[2026-04-17 20:02:14]  
+
+[2026-04-17 20:02:37] cav
+
+show actual keyboard keys instead of these random chanrnumbers
+
+
+2026-04-17 20:03:12,673: Websocket connected
+[2026-04-17 20:03:42] f
+
+[2026-04-17 20:03:46] h
+
+[2026-04-17 20:04:05] c
+
+[2026-04-17 20:04:15] ttsss ststtittss 
+
+[2026-04-17 20:05:03] its stlll showing random characters:
+
+[2026-04-17 20:05:08] 
+v
+
+
+2026-04-17 20:06:28,453: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+[2026-04-17 20:05:42] G2
+
+2026-04-17 20:06:33,460: Websocket connected
+[2026-04-17 20:06:32] cccls
+
+
+
+[2026-04-17 20:06:55] 
+
+hehehello
+
+[2026-04-17 20:07:06] 
+
+hash
+
+
+
+
+[2026-04-17 20:08:32] /cl
+
+[2026-04-17 20:09:01] tw
+
+[2026-04-17 20:09:24] G2
+
+[2026-04-17 20:09:37] rr
+
+[2026-04-17 20:10:01] on structured mode send the data in struG2
+
+[2026-04-17 20:10:05] str
+
+[2026-04-17 20:10:09] uu
+
+[2026-04-17 20:10:17] ructured 
+
+[2026-04-17 20:10:55] 
+
+
+[2026-04-17 20:10:58] -
+
+[2026-04-17 20:11:43] cv
+
+[2026-04-17 20:12:27] requests not instantly send whenever a key is pressed but gather up the data and send it when smart buttons like ENTER or SPACEBar 
+
+[2026-04-17 20:13:01] or anare pressed basically we want we want to make the information sent in 
+
+[2026-04-17 20:13:18] messages that make sense and are readable, to add 
+
+[2026-04-17 20:14:06] also add a fallback delay of around 5 seconds between key pressed so if no more keys are pressed 5 seconds after the last key then send all the last data as a 
+
+[2026-04-17 20:14:13] block
+
+
+[2026-04-17 20:15:08] add a feature of detecting KeyHOKeyholds, for example if the user holds the CtRL then presses 
+
+[2026-04-17 20:15:25] C it should get logged ad CTRL+c in the structured mode
+
+
+2026-04-17 20:15:58,970: Websocket connected
+2026-04-17 21:19:03,489: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-17 21:19:09,513: Websocket connected
+2026-04-17 21:19:12,158: Websocket connected
+2026-04-17 21:24:03,774: Websocket connected
+2026-04-17 21:25:55,424: Websocket connected
+2026-04-17 21:29:59,400: Websocket connected
+2026-04-17 21:35:57,082: Websocket connected
+2026-04-17 21:40:09,346: Websocket connected
+2026-04-17 22:11:58,469: Websocket connected
+2026-04-17 22:16:54,935: Websocket connected
+2026-04-17 22:18:12,100: Websocket connected
+2026-04-17 22:31:03,202: Websocket connected
+2026-04-17 22:43:15,948: Websocket connected
+2026-04-17 22:47:28,003: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-17 22:47:33,009: Websocket connected
+2026-04-17 23:09:32,214: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-17 23:09:38,729: Websocket connected
+2026-04-17 23:10:10,684: Websocket connected
+2026-04-17 23:46:19,093: Websocket connected
+2026-04-18 00:03:09,967: Websocket connected
+2026-04-18 00:03:42,747: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-18 00:03:47,754: Websocket connected
+2026-04-18 00:07:10,357: Websocket connected
+2026-04-18 00:07:49,905: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-18 00:08:01,192: Websocket connected
+2026-04-18 00:17:24,048: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-18 00:17:35,363: [WinError 10061] No connection could be made because the target machine actively refused it - goodbye
+2026-04-18 00:17:40,367: Websocket connected
+2026-04-18 00:20:02,491: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-18 00:20:11,323: [WinError 10061] No connection could be made because the target machine actively refused it - goodbye
+2026-04-18 00:20:16,327: Websocket connected
+2026-04-18 00:23:48,876: [WinError 10054] An existing connection was forcibly closed by the remote host - goodbye
+2026-04-18 00:23:57,932: [WinError 10061] No connection could be made because the target machine actively refused it - goodbye
+2026-04-18 00:24:07,012: [WinError 10061] No connection could be made because the target machine actively refused it - goodbye
+2026-04-18 00:24:16,054: [WinError 10061] No connection could be made because the target machine actively refused it - goodbye
+2026-04-18 00:24:23,602: Websocket connected
+2026-04-18 00:26:58,295: Websocket connected

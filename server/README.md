@@ -1,90 +1,41 @@
-# KeyLogger Next.js Migration
+# server/ — Next.js dashboard + WebSocket relay
 
-This project replaces the original PHP server with a Next.js API route for receiving and logging data from logger.vbs.
+See the [top-level README](../README.md) for the overall architecture, client protocol, and message formats. This file covers only what is specific to this Next.js project.
 
-## Getting Started
+## Important: non-standard Next.js
 
-First, run the development server:
+This project uses a modified Next.js with breaking changes from upstream. Before editing server code, read the relevant guide in `node_modules/next/dist/docs/` — public Next.js documentation may be wrong for this repo. See `AGENTS.md` / `CLAUDE.md`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Layout
+
+```
+src/app/
+├── api/log/route.js   Boots the WebSocket server on :6699 and relays messages
+├── layout.js
+└── page.js            Dashboard: connects to ws://localhost:6699 as a "frontend" client
+keystrokes.log         Legacy file-watched log source (see below)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## How the relay works
 
-You can start editing the page by modifying `app/route.ts`. The page auto-updates as you edit the file.
+`src/app/api/log/route.js` starts a `ws` `WebSocketServer` on port **6699** as a side effect of the module being imported. Each connecting socket is classified on its first message:
 
-## Learn More
+- A message containing a `mode` field → **frontend** client. Gets a `status` snapshot of connected devices on connect. Mode changes are forwarded to every keylogger.
+- Anything else → **keylogger** client. Its `hello` payload is stored as `ws._device` and every subsequent message is forwarded to every frontend with the device attached and a `serverTimestamp` added.
 
-To learn more about Next.js, take a look at the following resources:
+`exit` messages from keyloggers are forwarded with their device info so the UI can show a disconnect.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Legacy `keystrokes.log` watcher
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`route.js` also `fs.watch`es a `keystrokes.log` file at the project root. When it changes, the contents are parsed into `{ timestamp, content }` records, broadcast to frontends as a `structured` payload, and the file is truncated. This predates the WebSocket flow and is kept for compatibility — the current Python client does not write to it.
 
-## Deploy on Vercel
+## Development
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Dashboard: `http://localhost:3000`. WebSocket: `ws://localhost:6699`.
 
-## API Routes
-
-This directory contains example API routes for the headless API app.
-
-For more details, see [route.js file convention](https://nextjs.org/docs/app/api-reference/file-conventions/route).
-
-## API Endpoint
-
-- POST `/api/log`
-  - Body: `{ "data": "<encrypted_data>" }`
-  - The endpoint decrypts the data using XOR and logs it with a timestamp and IP address to `keystrokes.log` in the project root.
-
-## Configuration
-- The encryption key must match between logger.vbs and the API route (`YourEncryptionKey`).
-
-## Running the Project
-1. Install dependencies:
-   ```sh
-   npm install
-   ```
-2. Start the development server:
-   ```sh
-   npm run dev
-   ```
-
-## Notes
-- The log file is written to the project root as `keystrokes.log`.
-- Ensure your deployment environment allows file writing if you deploy this API.
-
-## Hosting and Testing Locally
-
-To host and test the Next.js server locally:
-
-1. Open a terminal in the `logger_server` directory.
-2. Install dependencies (if you haven't already):
-   ```sh
-   npm install
-   ```
-3. Start the development server:
-   ```sh
-   npm run dev
-   ```
-4. The server will be available at `http://localhost:3000`.
-5. Update the `RemoteServer` constant in `logger.vbs` to:
-   ```vbs
-   Const RemoteServer = "http://localhost:3000/api/log"
-   ```
-6. Run your logger script. It will POST data to your local Next.js API endpoint.
-7. Check the `keystrokes.log` file in the project root to see the received and decrypted data.
-
-**Note:**
-- Make sure your firewall allows incoming requests to port 3000 if testing from another device.
-- For production, use your deployed Vercel URL as described above.
+If testing from another machine, open both ports in the firewall and change `ws://localhost:6699` in `keylogger/Keylogger.py` to point at this host.

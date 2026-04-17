@@ -1,6 +1,6 @@
 {
   "name": "logger_server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "dev": "npx kill-port 6699 && concurrently \"node src/app/api/log/route.js\" \"next dev\"",
